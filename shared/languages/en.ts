@@ -751,6 +751,7 @@ export const EN = {
    BuildingColor: "Building Color",
    ResourceColor: "Resource Color",
    NextMarketUpdateIn: "Next Market Update In",
+   ActiveMarketTrades: "Active Market Trades",
    Theme: "Theme",
    Shortcut: "Shortcut",
    Gameplay: "Gameplay",
