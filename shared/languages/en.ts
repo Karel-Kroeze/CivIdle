@@ -960,7 +960,7 @@ export const EN = {
    TribuneGreatPeopleLevelWarningV2:
       "Your current account rank is Tribune. Upgrading to Quaestor will carry over permanent great people <b>up to level %{level}</b>. Partial progress above level %{level} will not be carried over",
    TribuneUpgradeDescGreatPeopleWarning:
-      "Your current run has great people. You should <b>rebirth first</b>. Upgrading to Quaestor rank will reset your current run",
+      "Your current run has great people. To upgrade to Quaestor rank, you <b>must rebirth first</b>. This will reset your current run",
    TribuneUpgradeDescV2:
       "Upgrading from Tribune to Quaestor will unlock all online features. However, only <b>permanent great people up to level %{level}</b> can be carried over. Partial progress above level %{level} will not be carried over",
    TurnOnTimeWarpDesc:
