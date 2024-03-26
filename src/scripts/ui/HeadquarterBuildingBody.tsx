@@ -30,18 +30,22 @@ import { L, t } from "../../../shared/utilities/i18n";
 import { useGameOptions } from "../Global";
 import { TechTreeScene } from "../scenes/TechTreeScene";
 import { Singleton } from "../utilities/Singleton";
+import { playLevelUp } from "../visuals/Sound";
 import { BuildingColorComponent } from "./BuildingColorComponent";
 import type { IBuildingComponentProps } from "./BuildingPage";
 import { BuildingProduceComponent } from "./BuildingProduceComponent";
 import { BuildingStorageComponent } from "./BuildingStorageComponent";
+import { ChooseGreatPersonModal } from "./ChooseGreatPersonModal";
 import { showModal } from "./GlobalModal";
 import { GreatPersonPage } from "./GreatPersonPage";
 import { HappinessComponent } from "./HappinessComponent";
 import { FormatNumber } from "./HelperComponents";
 import { PlayerHandleComponent } from "./PlayerHandleComponent";
 import { RebornModal } from "./RebornModal";
+import { RenderHTML } from "./RenderHTMLComponent";
 import { SteamAchievementPage } from "./SteamAchievementPage";
 import { TextWithHelp } from "./TextWithHelpComponent";
+import { WarningComponent } from "./WarningComponent";
 import { WonderPage } from "./WonderPage";
 import { WorkerScienceComponent } from "./WorkerScienceComponent";
 
@@ -229,12 +233,10 @@ export function HeadquarterBuildingBody({
          <WonderComponent gameState={gameState} />
          <fieldset>
             <legend>{t(L.SteamAchievement)}</legend>
-            <div
-               className="text-link text-strong"
-               onClick={() => Singleton().routeTo(SteamAchievementPage, {})}
-            >
-               {t(L.SteamAchievementDetails)}
-            </div>
+            <button onClick={() => Singleton().routeTo(SteamAchievementPage, {})} className="jcc w100 row">
+               <div className="m-icon small">emoji_events</div>
+               <div className="f1 text-strong">{t(L.SteamAchievementDetails)}</div>
+            </button>
          </fieldset>
          <BuildingColorComponent gameState={gameState} xy={xy} />
       </div>
@@ -248,6 +250,36 @@ function GreatPeopleComponent({
    return (
       <fieldset>
          <legend>{t(L.GreatPeople)}</legend>
+         {gameState.greatPeopleChoices.length > 0 ? (
+            <WarningComponent className="mb10 text-small" icon="info">
+               <div
+                  className="pointer"
+                  onClick={() => {
+                     if (gameState.greatPeopleChoices.length > 0) {
+                        playLevelUp();
+                        showModal(<ChooseGreatPersonModal permanent={false} />);
+                     }
+                  }}
+               >
+                  <RenderHTML html={t(L.UnclaimedGreatPersonThisRun)} />
+               </div>
+            </WarningComponent>
+         ) : null}
+         {options.greatPeopleChoices.length > 0 ? (
+            <WarningComponent className="mb10 text-small" icon="info">
+               <div
+                  className="pointer"
+                  onClick={() => {
+                     if (options.greatPeopleChoices.length > 0) {
+                        playLevelUp();
+                        showModal(<ChooseGreatPersonModal permanent={true} />);
+                     }
+                  }}
+               >
+                  <RenderHTML html={t(L.UnclaimedGreatPersonPermanent)} />
+               </div>
+            </WarningComponent>
+         ) : null}
          <ul className="tree-view">
             <li>
                <details>

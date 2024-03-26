@@ -243,7 +243,7 @@ fieldset .separator {
    font-family: "Material Symbols Outlined";
    font-weight: normal;
    font-style: normal;
-   font-size: 24px;
+   font-size: 2.4rem;
    line-height: 1;
    letter-spacing: normal;
    text-transform: none;
@@ -259,7 +259,7 @@ fieldset .separator {
 }
 
 .m-icon.small {
-   font-size: 12px;
+   font-size: 1.2rem;
 }
 
 .mr2 {
@@ -325,6 +325,10 @@ fieldset .separator {
 .row .f1,
 .col .f1 {
    flex: 1;
+}
+
+.row .fs {
+   align-self: flex-start;
 }
 
 .w100 {
@@ -440,7 +444,7 @@ ul.tree-view>li:first-child {
    color: #333;
    border-radius: 3px;
    font-family: "Pixelated MS Sans Serif", Arial;
-   font-size: 11px;
+   font-size: 1.1rem;
    z-index: 2;
 }
 
@@ -450,6 +454,15 @@ ul.tree-view>li:first-child {
    border: 1px solid grey;
    color: #333;
    border-radius: 3px;
+}
+
+.warning-banner ul {
+   padding: 0;
+   margin: 5px 0;
+}
+
+.warning-banner ul li {
+   list-style-type: square;
 }
 
 .table-view {

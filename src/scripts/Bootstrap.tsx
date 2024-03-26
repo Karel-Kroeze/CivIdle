@@ -16,10 +16,10 @@ import { getSpecialBuildings } from "../../shared/logic/IntraTickCache";
 import type { IPetraBuildingData } from "../../shared/logic/Tile";
 import { clamp, forEach, isNullOrUndefined, rejectIn, schedule } from "../../shared/utilities/Helper";
 import type { TypedEvent } from "../../shared/utilities/TypedEvent";
-import { isGameDataCompatible, loadGame, syncSidePanelWidth, syncUITheme } from "./Global";
+import { isGameDataCompatible, loadGame, syncFontSizeScale, syncSidePanelWidth, syncUITheme } from "./Global";
 import type { RouteChangeEvent } from "./Route";
+import { tickEverySecond } from "./logic/ClientUpdate";
 import { Heartbeat } from "./logic/Heartbeat";
-import { tickEverySecond } from "./logic/Tick";
 import { getBuildingTexture, getTileTexture } from "./logic/VisualLogic";
 import type { MainBundleAssets } from "./main";
 import { connectWebSocket } from "./rpc/RPCClient";
@@ -84,7 +84,8 @@ export async function startGame(
    syncLanguage(Languages[options.language]);
    syncUITheme(options);
    syncSidePanelWidth(app, options);
-   calculateTierAndPrice();
+   syncFontSizeScale(options);
+   calculateTierAndPrice(console.log);
    initializeSingletons({
       sceneManager: new SceneManager({ app, assets: resources, textures, gameState }),
       routeTo,
@@ -96,7 +97,7 @@ export async function startGame(
 
    // ========== Connect to server ==========
    routeTo(LoadingPage, { stage: LoadingPageStage.SteamSignIn });
-   const TIMEOUT = import.meta.env.DEV ? 1 : 10;
+   const TIMEOUT = import.meta.env.DEV ? 1 : 15;
    let hasOfflineProductionModal = false;
    try {
       const actualOfflineTime = await Promise.race([

@@ -4,15 +4,17 @@ import { isSpecialBuilding } from "../../../shared/logic/BuildingLogic";
 import { Config } from "../../../shared/logic/Config";
 import { getGameOptions, getGameState } from "../../../shared/logic/GameStateLogic";
 import { rollPermanentGreatPeople } from "../../../shared/logic/RebornLogic";
-import { AccountLevel, ChatChannels, type ChatChannel } from "../../../shared/utilities/Database";
+import { AccountLevel, BanFlag, ChatChannels, type ChatChannel } from "../../../shared/utilities/Database";
 import {
    HOUR,
+   MINUTE,
    SECOND,
    clamp,
    firstKeyOf,
    forEach,
    formatHM,
    formatNumber,
+   hasFlag,
    reduceOf,
    safeParseInt,
    sizeOf,
@@ -20,7 +22,7 @@ import {
 } from "../../../shared/utilities/Helper";
 import { decompressSave, overwriteSaveGame, resetToCity, saveGame } from "../Global";
 import { addSystemMessage, canEarnGreatPeopleFromReborn, client } from "../rpc/RPCClient";
-import { tickEverySecond } from "./Tick";
+import { tickEverySecond } from "./ClientUpdate";
 
 function requireOfflineRun(): void {
    if (canEarnGreatPeopleFromReborn()) {
@@ -146,6 +148,51 @@ export async function handleChatCommand(command: string): Promise<void> {
          addSystemMessage(JSON.stringify(user));
          break;
       }
+      case "playersave": {
+         if (!parts[1]) {
+            throw new Error("Invalid command format");
+         }
+         try {
+            const save = await client.queryPlayerSave(parts[1]);
+            const newHandle = await window.showSaveFilePicker();
+            const writableStream = await newHandle.createWritable();
+            await writableStream.write(save);
+            await writableStream.close();
+         } catch (error) {
+            addSystemMessage(String(error));
+         }
+         break;
+      }
+      case "getplayerflag": {
+         if (!parts[1]) {
+            throw new Error("Invalid command format");
+         }
+         const flag = await client.getPlayerFlag(parts[1]);
+         addSystemMessage(
+            [
+               `Flag=${flag.toString(2)}`,
+               `Completely=${hasFlag(flag, BanFlag.Completely)}`,
+               `TribuneOnly=${hasFlag(flag, BanFlag.TribuneOnly)}`,
+               `NoRename=${hasFlag(flag, BanFlag.NoRename)}`,
+            ].join(", "),
+         );
+         break;
+      }
+      case "setplayerflag": {
+         if (!parts[1] || !parts[2]) {
+            throw new Error("Invalid command format");
+         }
+         const flag = await client.setPlayerFlag(parts[1], parseInt(parts[2], 2));
+         addSystemMessage(
+            [
+               `Flag=${flag.toString(2)}`,
+               `Completely=${hasFlag(flag, BanFlag.Completely)}`,
+               `TribuneOnly=${hasFlag(flag, BanFlag.TribuneOnly)}`,
+               `NoRename=${hasFlag(flag, BanFlag.NoRename)}`,
+            ].join(", "),
+         );
+         break;
+      }
       case "announce": {
          if (!parts[1] || !parts[2]) {
             throw new Error("Invalid command format");
@@ -173,7 +220,7 @@ export async function handleChatCommand(command: string): Promise<void> {
          if (!parts[1] || !parts[2]) {
             throw new Error("Invalid command format");
          }
-         const muteUntil = await client.mutePlayer(parts[1], parseInt(parts[2], 10) * HOUR);
+         const muteUntil = await client.mutePlayer(parts[1], parseInt(parts[2], 10) * MINUTE);
          addSystemMessage(`Player ${parts[1]} has been muted until ${new Date(muteUntil).toLocaleString()}`);
          break;
       }

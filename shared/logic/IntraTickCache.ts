@@ -28,17 +28,12 @@ class IntraTickCache {
       Readonly<PartialTabulate<Resource>>
    >();
    storageFullBuildings: Tile[] | undefined;
-   happinessExemptions = new Set<Tile>();
 }
 
 let _cache = new IntraTickCache();
 
 export function clearIntraTickCache(): void {
    _cache = new IntraTickCache();
-}
-
-export function getHappinessExemptions(): Set<Tile> {
-   return _cache.happinessExemptions;
 }
 
 export function getBuildingIO(
@@ -81,7 +76,7 @@ export function getBuildingIO(
          }
       }
       if ("resourceImports" in b && type === "input") {
-         const totalCapacity = getResourceImportCapacity(b, totalMultiplierFor(xy, "output", 1, gs));
+         const totalCapacity = getResourceImportCapacity(b, totalMultiplierFor(xy, "output", 1, false, gs));
          let used = 0;
          forEach((b as IResourceImportBuildingData).resourceImports, (k, v) => {
             if (Tick.current.totalValue > 0 && used + v.perCycle > totalCapacity) {
@@ -105,10 +100,10 @@ export function getBuildingIO(
             value *= b.capacity;
          }
          if (options & IOCalculation.Multiplier) {
-            value *= totalMultiplierFor(xy, type, 1, gs);
+            value *= totalMultiplierFor(xy, type, 1, false, gs);
          }
          if (options & IOCalculation.MultiplierExcludeElectrification) {
-            value *= totalMultiplierFor(xy, type, 1, gs) - (Tick.current.electrified.get(xy) ?? 0);
+            value *= totalMultiplierFor(xy, type, 1, true, gs);
          }
          safeAdd(result, k, value);
       });

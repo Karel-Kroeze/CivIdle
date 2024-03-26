@@ -1,6 +1,5 @@
 import { type GreatPerson } from "../../../shared/definitions/GreatPersonDefinitions";
 import { Config } from "../../../shared/logic/Config";
-import { MAX_TRIBUNE_CARRY_OVER_LEVEL } from "../../../shared/logic/Constants";
 import { getSpecialBuildings } from "../../../shared/logic/IntraTickCache";
 import { getGreatPersonThisRunLevel } from "../../../shared/logic/RebornLogic";
 import { forEach, numberToRoman } from "../../../shared/utilities/Helper";
@@ -9,8 +8,6 @@ import { useGameOptions, useGameState } from "../Global";
 import { isOnlineUser } from "../rpc/RPCClient";
 import { Singleton } from "../utilities/Singleton";
 import { greatPersonImage } from "../visuals/GreatPersonVisual";
-import { playLevelUp } from "../visuals/Sound";
-import { ChooseGreatPersonModal } from "./ChooseGreatPersonModal";
 import { showModal } from "./GlobalModal";
 import { ManagePermanentGreatPersonModal } from "./ManagePermanentGreatPersonModal";
 import { MenuComponent } from "./MenuComponent";
@@ -48,43 +45,6 @@ export function GreatPersonPage(): React.ReactNode {
                <div className="f1">{t(L.GoBack)}</div>
             </button>
             <div className="sep10"></div>
-            {isOnlineUser() ? null : (
-               <WarningComponent className="mb10 text-small" icon="warning">
-                  <RenderHTML
-                     html={t(L.TribuneGreatPeopleLevelWarningV2, { level: MAX_TRIBUNE_CARRY_OVER_LEVEL })}
-                  />
-               </WarningComponent>
-            )}
-            {gs.greatPeopleChoices.length > 0 ? (
-               <WarningComponent className="mb10" icon="info">
-                  <div
-                     className="pointer"
-                     onClick={() => {
-                        if (gs.greatPeopleChoices.length > 0) {
-                           playLevelUp();
-                           showModal(<ChooseGreatPersonModal permanent={false} />);
-                        }
-                     }}
-                  >
-                     <RenderHTML html={t(L.UnclaimedGreatPersonThisRun)} />
-                  </div>
-               </WarningComponent>
-            ) : null}
-            {options.greatPeopleChoices.length > 0 ? (
-               <WarningComponent className="mb10" icon="info">
-                  <div
-                     className="pointer"
-                     onClick={() => {
-                        if (options.greatPeopleChoices.length > 0) {
-                           playLevelUp();
-                           showModal(<ChooseGreatPersonModal permanent={true} />);
-                        }
-                     }}
-                  >
-                     <RenderHTML html={t(L.UnclaimedGreatPersonPermanent)} />
-                  </div>
-               </WarningComponent>
-            ) : null}
             <button
                className="row w100 mb10 text-strong"
                onClick={() => showModal(<ManagePermanentGreatPersonModal />)}
@@ -92,6 +52,11 @@ export function GreatPersonPage(): React.ReactNode {
                <div className="m-icon small">open_in_new</div>
                <div className="f1 text-center">{t(L.ManagePermanentGreatPeople)}</div>
             </button>
+            {isOnlineUser() ? null : (
+               <WarningComponent className="mb10" icon="info">
+                  <RenderHTML className="text-small" html={t(L.TribuneUpgradeDescV3)} />
+               </WarningComponent>
+            )}
             <TableView
                data={Array.from(greatPeople.values())}
                header={[

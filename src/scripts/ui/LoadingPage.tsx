@@ -4,7 +4,8 @@ import { OnKeydown } from "../../../shared/logic/Shortcut";
 import { formatPercent } from "../../../shared/utilities/Helper";
 import "../../css/LoadingPage.css";
 import energyStar from "../../images/energy_star.png";
-import { getVersion } from "../logic/Version";
+import { getFullVersion } from "../logic/Version";
+import { SteamClient, isSteam } from "../rpc/SteamClient";
 import { useTypedEvent } from "../utilities/Hook";
 import { openUrl } from "../utilities/Platform";
 
@@ -32,12 +33,21 @@ export function LoadingPage({
       if (e.key === "d") {
          openUrl(DISCORD_URL);
       }
+      if (e.key === "s") {
+         if (isSteam()) SteamClient.openMainSaveFolder();
+      }
+      if (e.key === "b") {
+         if (isSteam()) SteamClient.openBackupSaveFolder();
+      }
+      if (e.key === "l") {
+         if (isSteam()) SteamClient.openLogFolder();
+      }
    });
 
    return (
       <div className="loading-page">
          <img className="energy-star" src={energyStar} />
-         CivIdle {getVersion()}
+         CivIdle {getFullVersion()}
          <br />
          Proudly Presented by Fish Pond Studio
          <br />
@@ -75,7 +85,10 @@ export function LoadingPage({
             progress={progress}
          />
          <div className="report-issue">
-            Press <span className="highlight">[D]</span> to Report Issues on Discord
+            Report Issues on <span className="highlight">[D]</span>iscord
+            <br />
+            Open <span className="highlight">[S]</span>ave Folder, <span className="highlight">[B]</span>
+            ackup Folder or <span className="highlight">[L]</span>og Folder
          </div>
       </div>
    );

@@ -11,8 +11,13 @@ export function migrateSavedGame(save: SavedGame) {
          if (tile.building.status === "paused") {
             tile.building.status = "building";
          }
-         if (!tile.building.disabledInput) {
-            tile.building.disabledInput = new Set();
+         // @ts-expect-error
+         if (tile.building.disabledInput) {
+            // @ts-expect-error
+            delete tile.building.disabledInput;
+         }
+         if (isNullOrUndefined(tile.building.suspendedInput)) {
+            tile.building.suspendedInput = new Map();
          }
          if (isNullOrUndefined(tile.building.inputMode)) {
             tile.building.inputMode = BuildingInputMode.Distance;
@@ -46,9 +51,6 @@ export function migrateSavedGame(save: SavedGame) {
          });
       }
    });
-   if (save.options.chatSendChannel) {
-      save.options.chatReceiveChannel[save.options.chatSendChannel] = true;
-   }
    if (isNullOrUndefined(save.options.defaultProductionPriority)) {
       // @ts-expect-error
       save.options.defaultProductionPriority = getProductionPriority(save.options.defaultPriority);
@@ -57,6 +59,20 @@ export function migrateSavedGame(save: SavedGame) {
       // @ts-expect-error
       save.options.defaultConstructionPriority = getConstructionPriority(save.options.defaultPriority);
    }
+   if (isNullOrUndefined(save.options.chatChannels) || save.options.chatChannels.size === 0) {
+      save.options.chatChannels = new Set();
+      // @ts-expect-error
+      if (save.options.chatSendChannel) {
+         // @ts-expect-error
+         save.options.chatChannels.add(save.options.chatSendChannel);
+      } else {
+         save.options.chatChannels.add("en");
+      }
+   }
+   // @ts-expect-error
+   delete save.options.chatSendChannel;
+   // @ts-expect-error
+   delete save.options.chatReceiveChannel;
    // @ts-expect-error
    delete save.options.defaultPriority;
    forEach(save.options.buildingDefaults, (building, d) => {

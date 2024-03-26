@@ -1,12 +1,12 @@
 import { useState } from "react";
 import { NoPrice, NoStorage, type Resource } from "../../../shared/definitions/ResourceDefinitions";
 import { Config } from "../../../shared/logic/Config";
+import { unlockedResources } from "../../../shared/logic/IntraTickCache";
 import {
    getBuyAmountRange,
    getMaxActiveTrades,
    type IClientAddTradeRequest,
 } from "../../../shared/logic/PlayerTradeLogic";
-import { Tick } from "../../../shared/logic/TickLogic";
 import { isNullOrUndefined, keysOf, safeParseInt } from "../../../shared/utilities/Helper";
 import { L, t } from "../../../shared/utilities/i18n";
 import { client, useTrades, useUser } from "../rpc/RPCClient";
@@ -22,9 +22,7 @@ export function AddTradeComponent({ gameState, xy }: IBuildingComponentProps): R
    const enabled =
       !isNullOrUndefined(user) &&
       trades.filter((t) => t.fromId === user.userId).length < getMaxActiveTrades(user);
-   const buyResources = Array.from(Tick.next.resourcesByTile.keys()).filter(
-      (res) => !NoPrice[res] && !NoStorage[res],
-   );
+   const buyResources = keysOf(unlockedResources(gameState)).filter((r) => !NoStorage[r] && !NoPrice[r]);
    const resourcesInStorage = gameState.tiles.get(xy)?.building?.resources ?? {};
    const sellResources = keysOf(resourcesInStorage);
    const [trade, setTrade] = useState<IClientAddTradeRequest>({
@@ -188,6 +186,7 @@ export function AddTradeComponent({ gameState, xy }: IBuildingComponentProps): R
                      ) {
                         playError();
                         showToast(t(L.OperationNotAllowedError));
+                        return;
                      }
                      try {
                         // Note: we deduct the resources first otherwise resource can go negative if a player

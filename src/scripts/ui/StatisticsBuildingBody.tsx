@@ -20,7 +20,12 @@ import {
 import { Config } from "../../../shared/logic/Config";
 import { EXPLORER_SECONDS, MAX_EXPLORER } from "../../../shared/logic/Constants";
 import { GameFeature, hasFeature } from "../../../shared/logic/FeatureLogic";
-import { getBuildingIO, getTypeBuildings, unlockedResources } from "../../../shared/logic/IntraTickCache";
+import {
+   getBuildingIO,
+   getTypeBuildings,
+   getXyBuildings,
+   unlockedResources,
+} from "../../../shared/logic/IntraTickCache";
 import { getTransportStat } from "../../../shared/logic/ResourceLogic";
 import { getScienceAmount } from "../../../shared/logic/TechLogic";
 import { Tick } from "../../../shared/logic/TickLogic";
@@ -47,19 +52,23 @@ import { TableView } from "./TableView";
 import { WorkerScienceComponent } from "./WorkerScienceComponent";
 
 type Tab = "resources" | "buildings" | "empire";
+let savedStatisticsTab: Tab = "empire";
 
 export function StatisticsBuildingBody({ gameState, xy }: IBuildingComponentProps): React.ReactNode {
    const building = gameState.tiles.get(xy)?.building as IBuildingData;
    if (building == null) {
       return null;
    }
-   const [currentTab, setCurrentTab] = useState<Tab>("empire");
+   const [currentTab, setCurrentTab] = useState<Tab>(savedStatisticsTab);
    let content: React.ReactNode = null;
    if (currentTab === "resources") {
+      savedStatisticsTab = "resources";
       content = <ResourcesTab gameState={gameState} xy={xy} />;
    } else if (currentTab === "buildings") {
+      savedStatisticsTab = "buildings";
       content = <BuildingTab gameState={gameState} xy={xy} />;
    } else if (currentTab === "empire") {
+      savedStatisticsTab = "empire";
       content = <EmpireTab gameState={gameState} xy={xy} />;
    }
    return (
@@ -417,13 +426,18 @@ function BuildingTab({ gameState }: IBuildingComponentProps): React.ReactNode {
    );
 }
 
+const resourceTabSortingState = { column: 0, asc: true };
+
 function ResourcesTab({ gameState }: IBuildingComponentProps): React.ReactNode {
    const [showTheoreticalValue, setShowTheoreticalValue] = useState(true);
    const unlockedResourcesList: PartialSet<Resource> = unlockedResources(gameState);
    const resourceAmounts: Partial<Record<keyof ResourceDefinitions, number>> = {};
    const inputs: PartialTabulate<Resource> = {};
    const outputs: PartialTabulate<Resource> = {};
-   gameState.tiles.forEach((tile, xy) => {
+   getXyBuildings(gameState).forEach((building, xy) => {
+      if ("resourceImports" in building) {
+         return;
+      }
       const input = getBuildingIO(xy, "input", IOCalculation.Multiplier | IOCalculation.Capacity, gameState);
       const output = getBuildingIO(
          xy,
@@ -500,6 +514,7 @@ function ResourcesTab({ gameState }: IBuildingComponentProps): React.ReactNode {
                { name: t(L.StatisticsResourcesDeficit), right: true, sortable: true },
                { name: t(L.StatisticsResourcesRunOut), right: true, sortable: true },
             ]}
+            sortingState={resourceTabSortingState}
             data={keysOf(unlockedResourcesList)}
             compareFunc={(a, b, i) => {
                switch (i) {

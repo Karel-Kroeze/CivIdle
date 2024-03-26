@@ -1,6 +1,6 @@
 import type { Building } from "../definitions/BuildingDefinitions";
 import { BuildingSpecial } from "../definitions/BuildingDefinitions";
-import { Deposit, NoStorage, type Resource } from "../definitions/ResourceDefinitions";
+import { Deposit, NoPrice, NoStorage, type Resource } from "../definitions/ResourceDefinitions";
 import {
    clamp,
    forEach,
@@ -28,15 +28,16 @@ import { GameFeature, hasFeature } from "./FeatureLogic";
 import { GameOptions, type GameState } from "./GameState";
 import { getGameOptions, getGameState } from "./GameStateLogic";
 import { getBuildingIO, getBuildingsByType, getGrid, getXyBuildings } from "./IntraTickCache";
-import { getGreatPersonThisRunLevel } from "./RebornLogic";
+import { getGreatPersonThisRunLevel, getUpgradeCostFib } from "./RebornLogic";
 import { getBuildingsThatProduce, getResourcesValue } from "./ResourceLogic";
 import { getAgeForTech, getBuildingUnlockTech } from "./TechLogic";
-import { Tick, type Multiplier, type MultiplierWithSource } from "./TickLogic";
+import { AllMultiplierTypes, Tick, type Multiplier, type MultiplierWithSource } from "./TickLogic";
 import {
    BuildingInputMode,
    DEFAULT_STOCKPILE_CAPACITY,
    DEFAULT_STOCKPILE_MAX,
    IMarketBuildingData,
+   PRIORITY_MAX,
    PRIORITY_MIN,
    ResourceImportOptions,
    type IBuildingData,
@@ -45,13 +46,20 @@ import {
    type IWarehouseBuildingData,
 } from "./Tile";
 
-export function totalMultiplierFor(xy: Tile, type: keyof Multiplier, base: number, gs: GameState): number {
+export function totalMultiplierFor(
+   xy: Tile,
+   type: keyof Multiplier,
+   base: number,
+   stableOnly: boolean,
+   gs: GameState,
+): number {
    let result = base;
    forEachMultiplier(
       xy,
       (m) => {
          result += m[type] ?? 0;
       },
+      stableOnly,
       gs,
    );
    return result;
@@ -60,21 +68,29 @@ export function totalMultiplierFor(xy: Tile, type: keyof Multiplier, base: numbe
 function forEachMultiplier(
    xy: Tile,
    func: (m: MultiplierWithSource) => void,
+   stableOnly: boolean,
    gs: GameState,
 ): MultiplierWithSource[] {
    const result: MultiplierWithSource[] = [];
    const b = gs.tiles.get(xy)?.building;
-   Tick.current.tileMultipliers.get(xy)?.forEach((m) => func(m));
+   Tick.current.tileMultipliers.get(xy)?.forEach((m) => {
+      if (stableOnly && m.unstable) return;
+      func(m);
+   });
    if (b) {
       Tick.current.buildingMultipliers.get(b.type)?.forEach((m) => func(m));
    }
-   Tick.current.globalMultipliers.storage.forEach((m) => func({ storage: m.value, source: m.source }));
+   AllMultiplierTypes.forEach((type) => {
+      Tick.current.globalMultipliers[type].forEach((m) =>
+         func({ [type]: m.value, source: m.source, unstable: false } as MultiplierWithSource),
+      );
+   });
    return result;
 }
 
 export function getMultipliersFor(xy: Tile, gs: GameState): MultiplierWithSource[] {
    const result: MultiplierWithSource[] = [];
-   forEachMultiplier(xy, (m) => result.push(m), gs);
+   forEachMultiplier(xy, (m) => result.push(m), false, gs);
    return result;
 }
 
@@ -130,28 +146,22 @@ interface IWorkerRequirement {
    output: number;
 }
 
-export function getWorkersFor(
-   xy: Tile,
-   filter: { include: Partial<Record<Resource, number>> } | { exclude: Partial<Record<Resource, number>> },
-   gs: GameState,
-): IWorkerRequirement {
+export function getWorkersFor(xy: Tile, gs: GameState): IWorkerRequirement {
    const result: IWorkerRequirement = {
       rawOutput: 0,
       multiplier: 1,
       output: 0,
    };
    const b = gs.tiles.get(xy)?.building;
-   if (b) {
-      forEach(getBuildingIO(xy, "output", IOCalculation.Capacity, gs), (k, v) => {
-         if ("include" in filter && k in filter.include) {
-            result.rawOutput += v;
-            return;
-         }
-         if ("exclude" in filter && !(k in filter.exclude)) {
-            result.rawOutput += v;
-         }
+   // Buildings that produce workers do not cost workers
+   if (b && !Config.Building[b.type].output.Worker) {
+      forEach(getBuildingIO(xy, "input", IOCalculation.MultiplierExcludeElectrification, gs), (k, v) => {
+         if (!NoPrice[k]) result.rawOutput += v;
       });
-      result.multiplier = totalMultiplierFor(xy, "worker", 1, gs);
+      forEach(getBuildingIO(xy, "output", IOCalculation.MultiplierExcludeElectrification, gs), (k, v) => {
+         if (!NoPrice[k]) result.rawOutput += v;
+      });
+      result.multiplier = totalMultiplierFor(xy, "worker", 1, false, gs);
    }
    result.output = Math.ceil(result.rawOutput / result.multiplier);
    return result;
@@ -191,7 +201,7 @@ export function getStorageFor(xy: Tile, gs: GameState): IStorageResult {
    };
    const building = gs.tiles.get(xy)?.building;
    const used = reduceOf(building?.resources, accumulate, 0);
-   let multiplier = totalMultiplierFor(xy, "storage", 1, gs);
+   let multiplier = totalMultiplierFor(xy, "storage", 1, true, gs);
 
    let base = 0;
 
@@ -433,13 +443,14 @@ export function getBuildingCost(building: Pick<IBuildingData, "type" | "level">)
          }
       }
       const multiplier = Math.round(
-         100 + 100 * Math.pow(techIdx, 2) + Math.pow(5, ageIdx) * Math.pow(1.5, techIdx),
+         300 +
+            10 * Math.pow(ageIdx, 3) * Math.pow(techIdx, 2) +
+            (100 * Math.pow(5, ageIdx) * Math.pow(1.5, techIdx)) / Math.pow(techIdx, 2),
       );
 
       keysOf(cost).forEach((res) => {
-         const tier = Config.ResourceTier[res] ?? 1;
          const price = Config.ResourcePrice[res] ?? 1;
-         cost[res] = (multiplier * cost[res]! * tier) / Math.pow(price, 0.9);
+         cost[res] = (multiplier * cost[res]!) / price;
       });
    } else {
       const multiplier = 10;
@@ -449,6 +460,24 @@ export function getBuildingCost(building: Pick<IBuildingData, "type" | "level">)
    }
    buildingCostCache.set(key, Object.freeze(cost));
    return cost;
+}
+
+export function getWonderBaseBuilderCapacity(type: Building): number {
+   console.assert(isWorldWonder(type), "This only works for World Wonders!");
+   const tech = getBuildingUnlockTech(type);
+   const totalAmount = reduceOf(getBuildingCost({ type, level: 0 }), (prev, res, value) => prev + value, 0);
+   let techIdx = 0;
+   let ageIdx = 0;
+   if (tech) {
+      techIdx = Config.Tech[tech].column;
+      const a = getAgeForTech(tech);
+      if (a) {
+         const age = Config.TechAge[a];
+         ageIdx = age.idx;
+      }
+   }
+   const capacity = totalAmount / (500 * (Math.pow(ageIdx, 1.5) + 3) + 50 * Math.pow(techIdx, 1.5));
+   return capacity;
 }
 
 const totalBuildingCostCache: Map<number, Readonly<PartialTabulate<Resource>>> = new Map();
@@ -486,6 +515,10 @@ export function getCurrentPriority(building: IBuildingData, gs: GameState): numb
    if (!hasFeature(GameFeature.BuildingProductionPriority, gs)) {
       return PRIORITY_MIN;
    }
+
+   building.constructionPriority = clamp(building.constructionPriority, PRIORITY_MIN, PRIORITY_MAX);
+   building.productionPriority = clamp(building.productionPriority, PRIORITY_MIN, PRIORITY_MAX);
+
    switch (building.status) {
       case "building":
       case "upgrading":
@@ -493,7 +526,7 @@ export function getCurrentPriority(building: IBuildingData, gs: GameState): numb
       case "completed":
          return building.productionPriority;
       default:
-         return 0;
+         return PRIORITY_MIN;
    }
 }
 
@@ -603,7 +636,7 @@ export function getWarehouseIdleCapacity(xy: Tile, gs: GameState): number {
    if (building?.type !== "Warehouse") return 0;
    const warehouse = building as IWarehouseBuildingData;
    return (
-      getResourceImportCapacity(warehouse, totalMultiplierFor(xy, "output", 1, gs)) -
+      getResourceImportCapacity(warehouse, totalMultiplierFor(xy, "output", 1, false, gs)) -
       reduceOf(
          warehouse.resourceImports,
          (prev, k, v) => {
@@ -620,7 +653,8 @@ export function getBuilderCapacity(
    gs: GameState,
 ): { multiplier: number; base: number; total: number } {
    const builder =
-      sum(Tick.current.globalMultipliers.builderCapacity, "value") + totalMultiplierFor(xy, "worker", 0, gs);
+      sum(Tick.current.globalMultipliers.builderCapacity, "value") +
+      totalMultiplierFor(xy, "worker", 0, false, gs);
    let baseCapacity = clamp(building.level, 1, Infinity);
 
    if (isWorldWonder(building.type)) {
@@ -628,25 +662,6 @@ export function getBuilderCapacity(
    }
 
    return { multiplier: builder, base: baseCapacity, total: builder * baseCapacity };
-}
-
-export function getWonderBaseBuilderCapacity(type: Building): number {
-   console.assert(isWorldWonder(type), "This only works for World Wonders!");
-   const tech = getBuildingUnlockTech(type);
-   const totalAmount = reduceOf(getBuildingCost({ type, level: 0 }), (prev, res, value) => prev + value, 0);
-   let techIdx = 0;
-   let ageIdx = 0;
-   if (tech) {
-      techIdx = Config.Tech[tech].column;
-      const a = getAgeForTech(tech);
-      if (a) {
-         const age = Config.TechAge[a];
-         ageIdx = age.idx;
-      }
-   }
-   // const capacity = Math.round(Math.pow(5, ageIdx) + techIdx * 2);
-   const capacity = Math.round(-10 * Math.pow(ageIdx, 2) + 20 * techIdx + Math.pow(totalAmount / 3600, 0.85));
-   return capacity;
 }
 
 export function applyToAllBuildings<T extends IBuildingData>(
@@ -675,7 +690,7 @@ export function getMarketSellAmount(sellResource: Resource, xy: Tile, gs: GameSt
    return (
       building.level *
       getMarketBaseSellAmount(sellResource, buyResource) *
-      totalMultiplierFor(xy, "output", 1, gs)
+      totalMultiplierFor(xy, "output", 1, false, gs)
    );
 }
 
@@ -749,8 +764,14 @@ export const OnTileExplored = new TypedEvent<Tile>();
 export const ST_PETERS_FAITH_MULTIPLIER = 0.01;
 export const ST_PETERS_STORAGE_MULTIPLIER = 10 * 60 * 60;
 
-export function getPowerRequired(electrification: number): number {
-   return electrification <= 0 ? 0 : Math.round(Math.pow(2, electrification - 1) * 10);
+export function getPowerRequired(building: IBuildingData): number {
+   if (building.electrification <= 0) {
+      return 0;
+   }
+   if (Config.Building[building.type].power) {
+      return Math.round(getUpgradeCostFib(building.electrification) * 10);
+   }
+   return Math.round(Math.pow(2, building.electrification - 1) * 10);
 }
 
 export function canBeElectrified(b: Building): boolean {
@@ -887,10 +908,30 @@ export function applyBuildingDefaults(building: IBuildingData, options: GameOpti
    if (isNullOrUndefined(toApply.productionPriority)) {
       toApply.productionPriority = options.defaultProductionPriority;
    }
-   console.log(toApply);
    return Object.assign(building, toApply);
 }
 
 export function shouldAlwaysShowBuildingOptions(building: IBuildingData): boolean {
    return "resourceImports" in building || "sellResources" in building;
+}
+
+export function isBuildingWellStocked(xy: Tile, gs: GameState): boolean {
+   const building = gs.tiles.get(xy)?.building;
+   if (!building) {
+      return false;
+   }
+   return (
+      !isSpecialBuilding(building.type) &&
+      building.status === "completed" &&
+      (!Tick.current.notProducingReasons.has(xy) ||
+         Tick.current.notProducingReasons.get(xy) === "StorageFull" ||
+         Tick.current.notProducingReasons.get(xy) === "NotEnoughWorkers")
+   );
+}
+
+export function getElectrificationEfficiency(b: Building) {
+   if (Config.Building[b].power) {
+      return 0.5;
+   }
+   return 1;
 }

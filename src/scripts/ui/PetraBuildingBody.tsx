@@ -1,4 +1,5 @@
 import { getPetraBaseStorage, getStorageFor } from "../../../shared/logic/BuildingLogic";
+import { Config } from "../../../shared/logic/Config";
 import { MAX_OFFLINE_PRODUCTION_SEC } from "../../../shared/logic/Constants";
 import { notifyGameStateUpdate } from "../../../shared/logic/GameStateLogic";
 import type { IPetraBuildingData } from "../../../shared/logic/Tile";
@@ -10,6 +11,7 @@ import type { IBuildingComponentProps } from "./BuildingPage";
 import { BuildingWikipediaComponent } from "./BuildingWikipediaComponent";
 import { FormatNumber } from "./HelperComponents";
 import { ProgressBarComponent } from "./ProgressBarComponent";
+import { RenderHTML } from "./RenderHTMLComponent";
 import { WarningComponent } from "./WarningComponent";
 
 export function PetraBuildingBody({ gameState, xy }: IBuildingComponentProps): React.ReactNode {
@@ -58,8 +60,8 @@ export function PetraBuildingBody({ gameState, xy }: IBuildingComponentProps): R
                disabled={(building.resources.Warp ?? 0) < baseStorage}
                className="row w100 jcc"
                onClick={() => {
-                  if ((building.resources.Warp ?? 0) >= baseStorage) {
-                     building.resources.Warp = 0;
+                  if (building.resources.Warp && building.resources.Warp >= baseStorage) {
+                     building.resources.Warp -= baseStorage;
                      building.level++;
                      notifyGameStateUpdate();
                   } else {
@@ -118,8 +120,11 @@ export function PetraBuildingBody({ gameState, xy }: IBuildingComponentProps): R
                <div className="text-small text-strong text-red mt5">{t(L.TimeWarpWarning)}</div>
             ) : null}
          </fieldset>
-         <WarningComponent icon="info">{t(L.PetraNoMultiplier)}</WarningComponent>
-         <div className="sep10"></div>
+         <WarningComponent icon="info" className="text-small mb10">
+            <RenderHTML
+               html={t(L.BuildingNoMultiplier, { building: Config.Building[building.type].name() })}
+            />
+         </WarningComponent>
          <BuildingWikipediaComponent gameState={gameState} xy={xy} />
          <BuildingColorComponent gameState={gameState} xy={xy} />
       </div>

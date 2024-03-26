@@ -1,3 +1,4 @@
+import { Building } from "../definitions/BuildingDefinitions";
 import { Resource } from "../definitions/ResourceDefinitions";
 import { HOUR } from "./Helper";
 
@@ -95,7 +96,7 @@ export enum PendingClaimFlag {
 
 export interface IPendingClaim {
    id: string;
-   resource: string;
+   resource: Resource;
    amount: number;
    fillBy: string;
    flag: PendingClaimFlag;
@@ -137,7 +138,6 @@ export interface ITradeValue {
 export interface IUser {
    userId: string;
    handle: string;
-   authenticated: boolean;
    token: string | null;
    lastDisconnectAt: number;
    lastHeartbeatAt: number;
@@ -161,7 +161,6 @@ export interface IClientMapEntry extends IMapEntry {
    flag: string;
    level: AccountLevel;
    lastSeenAt: number;
-   authenticated: boolean;
    handle: string;
 }
 
@@ -169,6 +168,37 @@ export interface ISlowModeConfig {
    until: number;
    minInterval: number;
    lastChatAt: number;
+}
+
+export enum BanFlag {
+   None = 0,
+   Completely = 1 << 0,
+   TribuneOnly = 1 << 1,
+   NoRename = 1 << 2,
+}
+
+export interface IVotedBoost extends IClientVotedBoost {
+   votes: Record<string, number>;
+}
+
+export interface IClientVotedBoost {
+   options: IVotedBoostOption[];
+   voted: number;
+}
+
+export interface IGetVotedBoostResponse {
+   id: number;
+   current: IClientVotedBoost;
+   next: IClientVotedBoost;
+}
+
+export enum VotedBoostType {
+   Multipliers = 0,
+}
+
+export interface IVotedBoostOption {
+   buildings: Building[];
+   type: VotedBoostType;
 }
 
 export const DB: {
@@ -179,7 +209,9 @@ export const DB: {
    map: Record<string, IMapEntry>;
    muteList: Record<string, number>;
    slowList: Record<string, ISlowModeConfig>;
+   banList: Record<string, BanFlag>;
    greatPeopleRecovery: Record<string, number>;
+   votedBoosts: Record<number, IVotedBoost>;
 } = {
    chat: [],
    users: {},
@@ -188,7 +220,9 @@ export const DB: {
    pendingClaims: {},
    muteList: {},
    slowList: {},
+   banList: {},
    greatPeopleRecovery: {},
+   votedBoosts: {},
 };
 
 export const MoveTileCooldown = 4 * HOUR;
@@ -231,3 +265,10 @@ export const ChatMaxChars: Record<AccountLevel, number> = {
    [AccountLevel.Praetor]: 800,
    [AccountLevel.Consul]: 800,
 };
+
+export enum ServerWSErrorCode {
+   Ok = 0,
+   BadRequest = 3000,
+   InvalidTicket = 3001,
+   NotAllowed = 3002,
+}

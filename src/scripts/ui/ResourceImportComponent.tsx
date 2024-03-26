@@ -33,6 +33,8 @@ import { showModal } from "./GlobalModal";
 import { FormatNumber } from "./HelperComponents";
 import { TableView } from "./TableView";
 
+const resourceImportSortingState = { column: 1, asc: true };
+
 export function ResourceImportComponent({ gameState, xy }: IBuildingComponentProps): React.ReactNode {
    const building = gameState.tiles.get(xy)?.building as IResourceImportBuildingData;
    const [selected, setSelected] = useState(new Set<Resource>());
@@ -48,7 +50,7 @@ export function ResourceImportComponent({ gameState, xy }: IBuildingComponentPro
 
    const storage = getStorageFor(xy, gameState);
    const baseCapacity = getResourceImportCapacity(building, 1);
-   const capacityMultiplier = totalMultiplierFor(xy, "output", 1, gameState);
+   const capacityMultiplier = totalMultiplierFor(xy, "output", 1, false, gameState);
    const resources = keysOf(unlockedResources(gameState)).filter((r) => !NoStorage[r] && !NoPrice[r]);
 
    return (
@@ -63,6 +65,7 @@ export function ResourceImportComponent({ gameState, xy }: IBuildingComponentPro
                { name: t(L.ResourceImportImportCapV2), sortable: true, right: true },
                { name: "", sortable: false },
             ]}
+            sortingState={resourceImportSortingState}
             data={resources}
             compareFunc={(a, b, col) => {
                switch (col) {
@@ -176,7 +179,7 @@ export function ResourceImportComponent({ gameState, xy }: IBuildingComponentPro
                   forEach(building.resourceImports, (res, v) => {
                      v.perCycle = 0;
                   });
-                  const amount = (baseCapacity * capacityMultiplier) / selected.size;
+                  const amount = Math.floor((baseCapacity * capacityMultiplier) / selected.size);
                   selected.forEach((res) => {
                      if (building.resourceImports[res]) {
                         building.resourceImports[res]!.perCycle = amount;

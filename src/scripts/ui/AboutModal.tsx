@@ -1,7 +1,7 @@
 import { BACKUP_RECOVERY_URL } from "../../../shared/logic/Constants";
 import { L, t } from "../../../shared/utilities/i18n";
 import logo from "../../images/icon.png";
-import { getVersion } from "../logic/Version";
+import { getFullVersion } from "../logic/Version";
 import { SteamClient, isSteam } from "../rpc/SteamClient";
 import { openUrl } from "../utilities/Platform";
 import { Singleton } from "../utilities/Singleton";
@@ -21,7 +21,7 @@ export function AboutModal(): React.ReactNode {
                </div>
                <div className="f1">
                   <div className="text-strong">{t(L.CivIdle)}</div>
-                  <div>{getVersion()}</div>
+                  <div>{getFullVersion()}</div>
                   <div>{t(L.CivIdleInfo)}</div>
                   {L.CurrentLanguage === "English" ? null : (
                      <div>
@@ -36,9 +36,9 @@ export function AboutModal(): React.ReactNode {
                      {t(L.UserAgent, { driver: navigator.userAgent })}
                   </div>
                   {isSteam() ? (
-                     <div className="row mv5">
+                     <>
                         <div
-                           className="text-small text-link mr10"
+                           className="text-small text-link mt5"
                            onClick={() => SteamClient.openMainSaveFolder()}
                         >
                            {t(L.OpenSaveFolder)}
@@ -49,10 +49,13 @@ export function AboutModal(): React.ReactNode {
                         >
                            {t(L.OpenSaveBackupFolder)}
                         </div>
-                     </div>
+                        <div className="text-small text-link" onClick={() => SteamClient.openLogFolder()}>
+                           {t(L.OpenLogFolder)}
+                        </div>
+                     </>
                   ) : null}
                   <div
-                     className="text-small text-link mv5"
+                     className="text-small text-link"
                      onClick={() => {
                         openUrl(BACKUP_RECOVERY_URL);
                      }}

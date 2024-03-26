@@ -11,8 +11,10 @@ import {
    formatNumber,
    isEmpty,
    keysOf,
+   mapOf,
    mapSafeAdd,
    numberToRoman,
+   reduceOf,
    round,
    sizeOf,
 } from "../utilities/Helper";
@@ -32,9 +34,9 @@ import {
    getResourceUnlockTech,
 } from "./TechLogic";
 
+export const SAVE_KEY = "CivIdle";
 export const MAX_OFFLINE_PRODUCTION_SEC = 60 * 60 * 4;
-export const SCIENCE_VALUE = 0.5;
-export const MAX_TRIBUNE_CARRY_OVER_LEVEL = 2;
+export const SCIENCE_VALUE = 0.2;
 export const TRADE_CANCEL_REFUND_PERCENT = 0.9;
 export const TRIBUNE_UPGRADE_PLAYTIME = 48 * HOUR;
 export const MAX_CHAT_PER_CHANNEL = 200;
@@ -48,16 +50,21 @@ export const MARKET_DEFAULT_TRADE_COUNT = 5;
 export const MAX_EXPLORER = 10;
 export const EXPLORER_SECONDS = 60;
 
+export const GOLDEN_RATIO = (1 + Math.sqrt(5)) / 2;
+
 interface IRecipe {
    building: Building;
    input: PartialTabulate<Resource>;
    output: PartialTabulate<Resource>;
 }
 
-export function calculateTierAndPrice() {
+export function calculateTierAndPrice(log?: (val: string) => void) {
    forEach(IsDeposit, (k) => {
       Config.ResourceTier[k] = 1;
-      Config.ResourcePrice[k] = 1 + Config.Tech[getDepositUnlockTech(k)].column;
+      const tech = getDepositUnlockTech(k);
+      Config.ResourcePrice[k] = Math.round(
+         Config.Tech[tech].column + Math.pow(Config.TechAge[getAgeForTech(tech)!].idx, 2),
+      );
    });
 
    const allRecipes: IRecipe[] = [];
@@ -200,7 +207,7 @@ export function calculateTierAndPrice() {
                      if (v === res) {
                         delete resourceTierDependency[k];
                         delete Config.ResourceTier[k];
-                        console.log(
+                        log?.(
                            `Resource Tier of ${k} is decided by ${res}, but its tier has changed from ${
                               oldTier ?? "?"
                            } to ${targetTier}`,
@@ -211,7 +218,7 @@ export function calculateTierAndPrice() {
                      if (v === res) {
                         delete buildingTierDependency[k];
                         delete Config.BuildingTier[k];
-                        console.log(
+                        log?.(
                            `Building Tier of ${k} is decided by ${res}, but its tier has changed from ${
                               oldTier ?? "?"
                            } to ${targetTier}`,
@@ -224,12 +231,16 @@ export function calculateTierAndPrice() {
             if (!Config.BuildingTier[building] || targetTier > Config.BuildingTier[building]!) {
                Config.BuildingTier[building] = targetTier;
             }
+            // const multiplier = 0.5 + Math.sqrt(sizeOf(input));
+            const multiplier = 1.5 + 0.25 * sizeOf(input);
             forEach(output, (res) => {
-               const price = (2 * inputResourcesValue - notPricedResourceValue) / allOutputAmount;
+               const price = Math.round(
+                  (multiplier * inputResourcesValue - notPricedResourceValue) / allOutputAmount,
+               );
                if (!Config.ResourcePrice[res]) {
                   Config.ResourcePrice[res] = price;
                } else if (price > Config.ResourcePrice[res]!) {
-                  console.warn(
+                  log?.(
                      `Price of ${res} changed from ${Config.ResourcePrice[res]!} to ${price} by ${building}`,
                   );
                   Config.ResourcePrice[res] = price;
@@ -238,6 +249,12 @@ export function calculateTierAndPrice() {
          }
       });
    }
+
+   forEach(Config.BuildingTier, (building) => {
+      if (isSpecialBuilding(building)) {
+         Config.BuildingTier[building] = 0;
+      }
+   });
 
    const endResources: PartialSet<Resource> = {};
    let resourceHash = 0;
@@ -262,6 +279,32 @@ export function calculateTierAndPrice() {
       }
    });
 
+   forEach(Config.Building, (b, def) => {
+      if (def.output.Science) {
+         const multiplier = 1.5 + 0.25 * sizeOf(def.input);
+         const inputValue = Math.round(
+            multiplier *
+               reduceOf(
+                  def.input,
+                  (prev, res, amount) => prev + (Config.ResourcePrice[res] ?? 0) * amount,
+                  0,
+               ),
+         );
+         const outputValue = Math.round(
+            reduceOf(
+               def.output,
+               (prev, res, amount) =>
+                  prev + (res === "Science" ? SCIENCE_VALUE : Config.ResourcePrice[res] ?? 0) * amount,
+               0,
+            ),
+         );
+         console.assert(
+            inputValue === outputValue,
+            `Expect ${b} Input Value: ${inputValue} == Output Value: ${outputValue}`,
+         );
+      }
+   });
+
    const uniqueBuildings: Partial<Record<Building, City>> = {};
 
    forEach(Config.City, (city, def) => {
@@ -277,6 +320,7 @@ export function calculateTierAndPrice() {
    const wonderCost: string[] = [];
    const resourcesUsedByWonder = new Map<Resource, number>();
    keysOf(Config.Building)
+      .filter((b) => isWorldWonder(b))
       .sort((a, b) => {
          const techA = getBuildingUnlockTech(a);
          const techB = getBuildingUnlockTech(b);
@@ -286,40 +330,40 @@ export function calculateTierAndPrice() {
          return 0;
       })
       .forEach((k) => {
-         if (isWorldWonder(k)) {
-            let value = 0;
-            let cost = "";
-            let totalAmount = 0;
-            const baseBuilderCapacity = getWonderBaseBuilderCapacity(k);
-            const wonderAge = getAgeForTech(getBuildingUnlockTech(k)!)!;
-            forEach(getBuildingCost({ type: k, level: 0 }), (res, amount) => {
-               mapSafeAdd(resourcesUsedByWonder, res, 1);
-               const tech = getOrderedTechThatProduce(res);
-               const resourceAge = getAgeForTech(tech[0])!;
-               totalAmount += amount;
-               const ageDiff = Config.TechAge[wonderAge].idx - Config.TechAge[resourceAge].idx;
-               const ageDiffIndicator: string[] = [];
-               for (let i = 0; i < ageDiff; i++) {
-                  ageDiffIndicator.push("*");
-               }
-               cost += `${ageDiffIndicator.join("")}${res}: ${formatNumber(amount)}, `;
-               value += Config.ResourcePrice[res]! * amount;
-            });
-            cost = `${k.padEnd(25)} ${formatNumber(value).padEnd(10)}${formatHMS(
-               (1000 * totalAmount) / baseBuilderCapacity,
-            ).padEnd(10)}${cost}`;
-            wonderCost.push(cost);
-         }
+         let value = 0;
+         let cost = "";
+         let totalAmount = 0;
+         const baseBuilderCapacity = getWonderBaseBuilderCapacity(k);
+         const wonderAge = getAgeForTech(getBuildingUnlockTech(k)!)!;
+         forEach(getBuildingCost({ type: k, level: 0 }), (res, amount) => {
+            mapSafeAdd(resourcesUsedByWonder, res, 1);
+            const tech = getOrderedTechThatProduce(res);
+            const resourceAge = getAgeForTech(tech[0])!;
+            totalAmount += amount;
+            const ageDiff = Config.TechAge[wonderAge].idx - Config.TechAge[resourceAge].idx;
+            const ageDiffIndicator: string[] = [];
+            for (let i = 0; i < ageDiff; i++) {
+               ageDiffIndicator.push("*");
+            }
+            cost += `${ageDiffIndicator.join("")}${res}: ${formatNumber(amount)}, `;
+            value += Config.ResourcePrice[res]! * amount;
+         });
+         cost = `${k.padEnd(25)} ${formatNumber(value, false, true).padEnd(15)}${formatHMS(
+            (1000 * totalAmount) / baseBuilderCapacity,
+            true,
+         ).padEnd(10)}${cost}`;
+         wonderCost.push(cost);
       });
 
    const resourcePrice: string[] = [];
    keysOf(Config.Resource)
       .sort((a, b) => Config.ResourceTier[a]! - Config.ResourceTier[b]!)
+      .filter((r) => !NoPrice[r])
       .forEach((r) => {
          resourcePrice.push(
             `${r.padEnd(15)}${!NoPrice[r] && endResources[r] ? "*".padEnd(5) : "".padEnd(5)}${numberToRoman(
                Config.ResourceTier[r]!,
-            )!.padEnd(10)}${formatNumber(Config.ResourcePrice[r]!).padEnd(10)}${
+            )!.padEnd(10)}${String(Config.ResourcePrice[r]!).padEnd(10)}${
                resourcesUsedByWonder.get(r) ?? "0*"
             }`,
          );
@@ -378,17 +422,38 @@ export function calculateTierAndPrice() {
 
    notBoostedBuildings.sort((a, b) => Config.Tech[a.tech].column - Config.Tech[b.tech].column);
 
-   // console.log("BuildingTier", sortTabulate(Config.BuildingTier));
-   // console.log("BuildingTech", sortTabulate(Config.BuildingTech));
-   // console.log("ResourceTier", sortTabulate(Config.ResourceTier));
-   // console.log("ResourcePrice", sortTabulate(Config.ResourcePrice));
-   // console.log("ResourceTech", sortTabulate(Config.ResourceTech));
-   console.log(`>>>>>>>>>> ResourcePrice <<<<<<<<<<\n${resourcePrice.join("\n")}`);
-   console.log(`>>>>>>>>>> WonderCost <<<<<<<<<<\n${wonderCost.join("\n")}`);
-   console.log(
+   // console.log?.("BuildingTier", sortTabulate(Config.BuildingTier));
+   // console.log?.("BuildingTech", sortTabulate(Config.BuildingTech));
+   // console.log?.("ResourceTier", sortTabulate(Config.ResourceTier));
+   // console.log?.("ResourcePrice", sortTabulate(Config.ResourcePrice));
+   // console.log?.("ResourceTech", sortTabulate(Config.ResourceTech));
+   log?.(`>>>>>>>>>> ResourcePrice <<<<<<<<<<\n${resourcePrice.join("\n")}`);
+   log?.(`>>>>>>>>>> WonderCost <<<<<<<<<<\n${wonderCost.join("\n")}`);
+   log?.(
       `>>>>>>>>>> NotBoostedBuildings <<<<<<<<<<\n${notBoostedBuildings
          .map((a) => `${a.building.padEnd(25)}${a.tech.padEnd(20)}${a.age}`)
          .join("\n")}`,
    );
-   console.log(`>>>>>>>>>> Building Input Cost <<<<<<<<<<\n${buildingInputCost.join("\n")}`);
+   log?.(`>>>>>>>>>> Building Input Cost <<<<<<<<<<\n${buildingInputCost.join("\n")}`);
+
+   // keysOf(Config.Tech)
+   //    .sort((a, b) => Config.Tech[a].column - Config.Tech[b].column)
+   //    .forEach((tech) => {
+   //       Config.Tech[tech].unlockBuilding?.forEach((b) => {
+   //          if (!isSpecialBuilding(b)) {
+   //             log?.(logBuildingFormula(b));
+   //          }
+   //       });
+   //    });
+
+   function logBuildingFormula(b: Building): string {
+      const building = Config.Building[b];
+      return [
+         building.name(),
+         ": ",
+         mapOf(building.input, (res, value) => `${Config.Resource[res].name()} x${value}`).join(" + "),
+         " => ",
+         mapOf(building.output, (res, value) => `${Config.Resource[res].name()} x${value}`).join(" + "),
+      ].join("");
+   }
 }

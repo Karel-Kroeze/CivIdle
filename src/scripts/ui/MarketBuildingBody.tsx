@@ -30,10 +30,10 @@ import { BuildingStorageComponent } from "./BuildingStorageComponent";
 import { BuildingUpgradeComponent } from "./BuildingUpgradeComponent";
 import { BuildingWorkerComponent } from "./BuildingWorkerComponent";
 import { FormatNumber } from "./HelperComponents";
-import { RenderHTML } from "./RenderHTMLComponent";
 import { TableView } from "./TableView";
 import { TextWithHelp } from "./TextWithHelpComponent";
-import { WarningComponent } from "./WarningComponent";
+
+const marketSortingState = { column: 0, asc: true };
 
 export function MarketBuildingBody({ gameState, xy }: IBuildingComponentProps): React.ReactNode {
    const building = gameState.tiles.get(xy)?.building as IMarketBuildingData;
@@ -70,6 +70,7 @@ export function MarketBuildingBody({ gameState, xy }: IBuildingComponentProps): 
                { name: t(L.Storage), sortable: true },
                { name: t(L.MarketSell), sortable: false },
             ]}
+            sortingState={marketSortingState}
             data={keysOf(market.availableResources)}
             compareFunc={(a, b, i) => {
                switch (i) {
@@ -153,9 +154,6 @@ export function MarketBuildingBody({ gameState, xy }: IBuildingComponentProps): 
                );
             }}
          />
-         <WarningComponent icon="info" className="mv10 text-small">
-            <RenderHTML html={t(L.MarketTradeDescHTML)} />
-         </WarningComponent>
          <BuildingUpgradeComponent gameState={gameState} xy={xy} />
          <BuildingWorkerComponent gameState={gameState} xy={xy} />
          <BuildingStorageComponent gameState={gameState} xy={xy} />

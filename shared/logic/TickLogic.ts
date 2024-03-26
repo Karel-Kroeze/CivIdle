@@ -25,7 +25,7 @@ interface ITickData {
    happiness: ReturnType<typeof calculateHappiness> | null;
    workersUsed: Map<Resource, number>;
    workersAssignment: Map<Tile, number>;
-   electrified: Map<Tile, number>;
+   electrified: Set<Tile>;
    resourcesByTile: Map<Resource, IBuildingResource[]>;
    playerTradeBuildings: Map<Tile, IBuildingData>;
    globalMultipliers: GlobalMultipliers;
@@ -33,11 +33,15 @@ interface ITickData {
    specialBuildings: Map<Building, Tile>;
    totalValue: number;
    scienceProduced: Map<Tile, number>;
+   powerGrid: Set<Tile>;
+   powerPlants: Set<Tile>;
+   powerBuildings: Set<Tile>;
+   happinessExemptions: Set<Tile>;
 }
 
 export function EmptyTickData(): ITickData {
    return {
-      electrified: new Map(),
+      electrified: new Set(),
       buildingMultipliers: new Map(),
       unlockedBuildings: new Set(),
       tileMultipliers: new Map(),
@@ -52,6 +56,10 @@ export function EmptyTickData(): ITickData {
       specialBuildings: new Map(),
       totalValue: 0,
       scienceProduced: new Map(),
+      powerGrid: new Set(),
+      powerPlants: new Set(),
+      powerBuildings: new Set(),
+      happinessExemptions: new Set(),
    };
 }
 
@@ -61,7 +69,8 @@ export type NotProducingReason =
    | "StorageFull"
    | "TurnedOff"
    | "NotOnDeposit"
-   | "NoActiveTransports";
+   | "NoActiveTransports"
+   | "NoPower";
 
 export class GlobalMultipliers {
    sciencePerIdleWorker: IValueWithSource[] = [];
@@ -69,6 +78,9 @@ export class GlobalMultipliers {
    builderCapacity: IValueWithSource[] = [{ value: 1, source: t(L.BaseMultiplier) }];
    transportCapacity: IValueWithSource[] = [];
    happiness: IValueWithSource[] = [];
+   input: IValueWithSource[] = [];
+   output: IValueWithSource[] = [];
+   worker: IValueWithSource[] = [];
    storage: IValueWithSource[] = [];
 }
 
@@ -78,6 +90,9 @@ export const GlobalMultiplierNames: Record<keyof GlobalMultipliers, () => string
    builderCapacity: () => t(L.BuilderCapacity),
    happiness: () => t(L.Happiness),
    transportCapacity: () => t(L.TransportCapacity),
+   input: () => t(L.ConsumptionMultiplier),
+   output: () => t(L.ProductionMultiplier),
+   worker: () => t(L.WorkerCapacityMultiplier),
    storage: () => t(L.StorageMultiplier),
 };
 
@@ -108,14 +123,16 @@ interface IMultiplier {
 }
 
 export type Multiplier = RequireAtLeastOne<IMultiplier>;
-export type MultiplierWithSource = Multiplier & { source: string };
+export type MultiplierWithSource = Multiplier & { source: string; unstable?: boolean };
+
+export const AllMultiplierTypes = ["input", "output", "worker", "storage"] satisfies (keyof IMultiplier)[];
 
 export type MultiplierType = keyof IMultiplier;
-export const MultiplierTypeDesc: Record<MultiplierType, string> = {
-   output: t(L.ProductionMultiplier),
-   worker: t(L.WorkerMultiplier),
-   storage: t(L.StorageMultiplier),
-   input: t(L.ConsumptionMultiplier),
+export const MultiplierTypeDesc: Record<MultiplierType, () => string> = {
+   output: () => t(L.ProductionMultiplier),
+   worker: () => t(L.WorkerMultiplier),
+   storage: () => t(L.StorageMultiplier),
+   input: () => t(L.ConsumptionMultiplier),
 };
 
 export interface IValueWithSource {

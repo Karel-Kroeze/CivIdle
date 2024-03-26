@@ -55,7 +55,7 @@ export class GameState {
    favoriteTiles: Set<Tile> = new Set();
 }
 
-export type GreatPeopleChoice = [GreatPerson, GreatPerson, GreatPerson];
+export type GreatPeopleChoice = GreatPerson[];
 
 export class SavedGame {
    current = new GameState();
@@ -108,6 +108,7 @@ export class GameOptions {
    id = uuid4();
    token: string | null = null;
    sidePanelWidth = 400;
+   fontSizeScale = 1;
    version = SAVE_FILE_VERSION;
    buildingColors: Partial<Record<Building, string>> = {};
    resourceColors: Partial<Record<Resource, string>> = {};
@@ -115,8 +116,7 @@ export class GameOptions {
    shortcuts: Partial<Record<Shortcut, IShortcutConfig>> = {};
    soundEffect = true;
    chatHideLatestMessage = false;
-   chatSendChannel: ChatChannel = "en";
-   chatReceiveChannel: PartialSet<ChatChannel> = { en: true };
+   chatChannels: Set<ChatChannel> = new Set(["en"]);
    useMirrorServer = false;
    buildingDefaults: Partial<Record<Building, Partial<IBuildingData>>> = {};
    defaultProductionPriority = PRIORITY_MIN;

@@ -16,12 +16,18 @@ import type {
    IUser,
    IWelcomeMessage,
 } from "../../../shared/utilities/Database";
-import { AccountLevel, ChatAttributes, MessageType } from "../../../shared/utilities/Database";
+import {
+   AccountLevel,
+   ChatAttributes,
+   MessageType,
+   ServerWSErrorCode,
+} from "../../../shared/utilities/Database";
 import { vacuumChat } from "../../../shared/utilities/DatabaseShared";
-import { SECOND, forEach, hasFlag } from "../../../shared/utilities/Helper";
+import { SECOND, clamp, forEach, hasFlag } from "../../../shared/utilities/Helper";
 import { TypedEvent } from "../../../shared/utilities/TypedEvent";
 import { L, t } from "../../../shared/utilities/i18n";
 import { saveGame } from "../Global";
+import { getBuildNumber, getVersion } from "../logic/Version";
 import { showToast } from "../ui/GlobalModal";
 import { makeObservableHook } from "../utilities/Hook";
 import { playBubble, playKaching } from "../visuals/Sound";
@@ -29,7 +35,6 @@ import { SteamClient, isSteam } from "./SteamClient";
 
 let user: IUser | null = null;
 
-export const OnOfflineTime = new TypedEvent<number>();
 export const OnUserChanged = new TypedEvent<IUser | null>();
 export const OnChatMessage = new TypedEvent<LocalChat[]>();
 export const OnTradeChanged = new TypedEvent<IClientTrade[]>();
@@ -89,9 +94,12 @@ function getServerAddress(): string {
 }
 
 export function getTrades(): IClientTrade[] {
-   return Array.from(trades.values()).filter(
-      (trade) => Config.Resource[trade.buyResource] && Config.Resource[trade.sellResource],
-   );
+   return Array.from(trades.values()).filter((trade) => {
+      if (Config.Resource[trade.buyResource] && Config.Resource[trade.sellResource]) {
+         return true;
+      }
+      return false;
+   });
 }
 
 export const usePlayerMap = makeObservableHook(OnPlayerMapChanged, () => playerMap);
@@ -143,12 +151,24 @@ export async function connectWebSocket(): Promise<number> {
          steamTicketTime = Date.now();
       }
       getGameOptions().id = `steam:${await SteamClient.getSteamId()}`;
-      ws = new WebSocket(
-         `${getServerAddress()}/?appId=${await SteamClient.getAppId()}&ticket=${steamTicket}&platform=steam&steamId=${await SteamClient.getSteamId()}`,
-      );
+      const params = [
+         `appId=${await SteamClient.getAppId()}`,
+         `ticket=${steamTicket}`,
+         "platform=steam",
+         `steamId=${await SteamClient.getSteamId()}`,
+         `version=${getVersion()}`,
+         `build=${getBuildNumber()}`,
+      ];
+      ws = new WebSocket(`${getServerAddress()}/?${params.join("&")}`);
    } else {
       const token = `${getGameOptions().id}:${getGameOptions().token ?? getGameOptions().id}`;
-      ws = new WebSocket(`${getServerAddress()}/?platform=web&ticket=${token}`);
+      const params = [
+         `ticket=${token}`,
+         "platform=web",
+         `version=${getVersion()}`,
+         `build=${getBuildNumber()}`,
+      ];
+      ws = new WebSocket(`${getServerAddress()}/?${params.join("&")}`);
    }
 
    if (!ws) {
@@ -156,6 +176,12 @@ export async function connectWebSocket(): Promise<number> {
    }
 
    ws.binaryType = "arraybuffer";
+
+   let resolve: ((v: number) => void) | null = null;
+
+   const promise = new Promise<number>((resolve_) => {
+      resolve = resolve_;
+   });
 
    ws.onmessage = (e) => {
       const message = decode(e.data as ArrayBuffer) as AllMessageTypes;
@@ -168,7 +194,7 @@ export async function connectWebSocket(): Promise<number> {
             } else {
                c.chat.forEach((m) => {
                   const mentionsMe =
-                     user && m.message.toLowerCase().includes(`@${user.handle.toLowerCase()} `);
+                     user && m.message.toLowerCase().includes(`@${user.handle.toLowerCase()}`);
                   const isAnnounce = hasFlag(m.attr, ChatAttributes.Announce);
                   if (mentionsMe || isAnnounce) {
                      playBubble();
@@ -187,8 +213,8 @@ export async function connectWebSocket(): Promise<number> {
             getGameOptions().token = w.user.token;
             saveGame().catch(console.error);
             OnUserChanged.emit({ ...user });
-            const offlineTick = w.lastGameTick + w.offlineTime - getGameState().tick;
-            OnOfflineTime.emit(Math.min(w.offlineTime, offlineTick));
+            const offlineTicks = clamp(w.lastGameTick + w.offlineTime - getGameState().tick, 0, Infinity);
+            resolve?.(Math.min(w.offlineTime, offlineTicks));
             break;
          }
          case MessageType.Trade: {
@@ -243,16 +269,29 @@ export async function connectWebSocket(): Promise<number> {
       reconnect = 0;
    };
 
-   ws.onclose = () => {
+   ws.onclose = (ev) => {
       ws = null;
       user = null;
       OnUserChanged.emit(null);
-      setTimeout(connectWebSocket, Math.min(Math.pow(2, reconnect++) * SECOND, 16 * SECOND));
+      switch (ev.code) {
+         case ServerWSErrorCode.BadRequest:
+         case ServerWSErrorCode.NotAllowed:
+            break;
+         case ServerWSErrorCode.InvalidTicket:
+            steamTicket = null;
+            retryConnect();
+            break;
+         default:
+            retryConnect();
+            break;
+      }
    };
 
-   return new Promise<number>((resolve, reject) => {
-      OnOfflineTime.once((e) => resolve(e));
-   });
+   return promise;
+}
+
+function retryConnect() {
+   setTimeout(connectWebSocket, Math.min(Math.pow(2, reconnect++) * SECOND, 16 * SECOND));
 }
 
 function handleRpcResponse(response: any) {
