@@ -586,13 +586,21 @@ export function getBuildingLevelLabel(b: IBuildingData): string {
    return String(b.level);
 }
 
-function levelToNext(b: IBuildingData, x: number) {
-   const l = Math.ceil(b.level / x) * x - b.level;
+function levelToNext(c: number, x: number) {
+   const l = Math.ceil(c / x) * x - c;
    return l > 0 ? l : x;
 }
 
 export function getBuildingUpgradeLevels(b: IBuildingData): number[] {
-   return [1, levelToNext(b, 5), levelToNext(b, 10)];
+   return [1, levelToNext(b.level, 5), levelToNext(b.level, 10)];
+}
+
+export function getBuildingDesiredUpgradeLevels(b: IBuildingData): number[] {
+   return [1, levelToNext(b.desiredLevel, 5), levelToNext(b.desiredLevel, 10)]
+}
+
+export function getBuildingDesiredDowngradeLevels(b: IBuildingData): number[] {
+   return [1, b.desiredLevel % 5 || 5, b.desiredLevel % 10 || 10]
 }
 
 export function isSpecialBuilding(building?: Building): boolean {

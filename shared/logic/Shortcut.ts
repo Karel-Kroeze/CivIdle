@@ -33,7 +33,11 @@ export const ShortcutActions = {
       name: () => t(L.ShortcutBuildingPageToggleBuildingSetAllSimilar),
    },
    UpgradePageIncreaseLevel: { scope: "ConstructionPage", name: () => t(L.ShortcutUpgradePageIncreaseLevel) },
+   UpgradePageIncreaseLevelX5: { scope: "ConstructionPage", name: () => t(L.ShortcutUpgradePageIncreaseLevelX5) },
+   UpgradePageIncreaseLevelX10: { scope: "ConstructionPage", name: () => t(L.ShortcutUpgradePageIncreaseLevelX10) },
    UpgradePageDecreaseLevel: { scope: "ConstructionPage", name: () => t(L.ShortcutUpgradePageDecreaseLevel) },
+   UpgradePageDecreaseLevelX5: { scope: "ConstructionPage", name: () => t(L.ShortcutUpgradePageDecreaseLevelX5) },
+   UpgradePageDecreaseLevelX10: { scope: "ConstructionPage", name: () => t(L.ShortcutUpgradePageDecreaseLevelX10) },
    UpgradePageEndConstruction: {
       scope: "ConstructionPage",
       name: () => t(L.ShortcutUpgradePageEndConstruction),

@@ -1,6 +1,11 @@
 import Tippy from "@tippyjs/react";
 import classNames from "classnames";
-import { isSpecialBuilding, isWorldWonder } from "../../../shared/logic/BuildingLogic";
+import {
+   getBuildingDesiredDowngradeLevels,
+   getBuildingDesiredUpgradeLevels,
+   isSpecialBuilding,
+   isWorldWonder,
+} from "../../../shared/logic/BuildingLogic";
 import { Config } from "../../../shared/logic/Config";
 import { GameFeature, hasFeature } from "../../../shared/logic/FeatureLogic";
 import { notifyGameStateUpdate } from "../../../shared/logic/GameStateLogic";
@@ -50,6 +55,19 @@ export function ConstructionPage({ tile }: { tile: ITileData }): React.ReactNode
    };
    useShortcut("UpgradePageIncreaseLevel", () => increaseDesiredLevel(), [tile]);
    useShortcut("UpgradePageDecreaseLevel", () => decreaseDesiredLevel(), [tile]);
+
+   const upgrade_levels = getBuildingDesiredUpgradeLevels(building);
+   const downgrade_levels = getBuildingDesiredDowngradeLevels(building);
+   const upgrade = (level: number) => {
+      playClick();
+      building.desiredLevel = Math.max(building.level + 1, building.desiredLevel + level);
+      notifyGameStateUpdate();
+   };
+
+   useShortcut("UpgradePageIncreaseLevelX5", () => upgrade(upgrade_levels[1]), [tile]);
+   useShortcut("UpgradePageIncreaseLevelX10", () => upgrade(upgrade_levels[2]), [tile]);
+   useShortcut("UpgradePageDecreaseLevelX5", () => upgrade(downgrade_levels[1] * -1), [tile]);
+   useShortcut("UpgradePageDecreaseLevelX10", () => upgrade(downgrade_levels[2] * -1), [tile]);
 
    return (
       <div className="window">
